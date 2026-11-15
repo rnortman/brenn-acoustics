@@ -1,0 +1,1 @@
+Placeholder repo: Will be filled in with brenn's acoustics algorithm implementations, which should be hardware-free, sans-I/O acoustics algorithms for mic arrays and such (e.g. echo cancellation, beamforming, DoA, etc.).
