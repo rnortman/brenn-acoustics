@@ -1,0 +1,45 @@
+# Bazel flags for this repo. bzlmod only; there is no WORKSPACE file.
+
+# --- Correctness posture ---
+build --spawn_strategy=sandboxed
+# The one exception: a test tagged no-sandbox runs locally.
+# //tools/buildifier:buildifier_test is that test; it walks the whole
+# workspace, which no sandbox can show it.
+test --strategy=TestRunner=sandboxed,local
+build --incompatible_strict_action_env
+# No network for build and test actions.
+build --sandbox_default_allow_network=false
+common --incompatible_disallow_empty_glob
+test --test_output=errors
+test --test_summary=terse
+# Local default refreshes the module lockfile; CI overrides with
+# --lockfile_mode=error so resolution drift is a red build there.
+common --lockfile_mode=update
+
+# --- Caching ---
+# `common`, so a `common --disk_cache` in .bazelrc.user replaces it.
+common --disk_cache=~/.cache/brenn-acoustics-bazel-disk
+common --experimental_disk_cache_gc_max_size=10G
+common --experimental_disk_cache_gc_max_age=30d
+
+# --- No host C/C++ toolchain probe ---
+# The pinned LLVM toolchain is registered; without this, rules_cc's
+# autodetection probes the host compiler to set up a repository nothing uses.
+common --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1
+
+# --- Lint ---
+# clippy over the repository's own Rust, every warning an error. The aspect
+# skips targets in external repositories, so the pinned tools are not linted.
+# Behind a config so an inner-loop build does not pay for it; `make check`
+# turns it on. The flag is set for every build, not only under the config, so
+# moving between `make test` and `make check` keeps Bazel's analysis cache.
+build:lint --aspects=@rules_rust//rust:defs.bzl%rust_clippy_aspect
+build:lint --output_groups=+clippy_checks
+build --@rules_rust//rust/settings:clippy_flag=-Dwarnings
+
+# Per-developer flags, gitignored. Imported last, so a line there overrides a
+# line here for the same command; a `common` line there does not override a
+# `build` or `test` line here, because Bazel applies every `common` line before
+# any `build` line. The home rc (~/.bazelrc) is read after this whole file,
+# under the same rule.
+try-import %workspace%/.bazelrc.user

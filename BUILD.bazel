@@ -1,0 +1,49 @@
+"""The crate: `//:brenn_acoustics`, its unit tests and its format check.
+
+This package loads only rules_rust, so a module depending on this one loads it
+with none of the gate's dev dependencies. The gate's other targets live under
+tools/. Sources are listed by name; a new source file is added here.
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rustfmt_test")
+
+SRCS = [
+    "src/delay.rs",
+    "src/fft.rs",
+    "src/lib.rs",
+]
+
+exports_files(
+    ["MODULE.bazel"],
+    visibility = ["//tools:__subpackages__"],
+)
+
+# The Cargo build's inputs, for //tools/cargo_check:cargo_check_test.
+filegroup(
+    name = "cargo_sources",
+    srcs = ["Cargo.toml"] + SRCS,
+    visibility = ["//tools/cargo_check:__pkg__"],
+)
+
+rust_library(
+    name = "brenn_acoustics",
+    srcs = SRCS,
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    visibility = ["//visibility:public"],
+)
+
+rust_test(
+    name = "brenn_acoustics_test",
+    size = "small",
+    crate = ":brenn_acoustics",
+)
+
+rustfmt_test(
+    name = "rustfmt_test",
+    size = "small",
+    targets = [
+        ":brenn_acoustics",
+        ":brenn_acoustics_test",
+    ],
+)
