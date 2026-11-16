@@ -9,8 +9,11 @@ load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rustfmt_test")
 
 SRCS = [
     "src/delay.rs",
+    "src/echo.rs",
     "src/fft.rs",
+    "src/filter.rs",
     "src/lib.rs",
+    "src/test_signals.rs",
 ]
 
 exports_files(
@@ -37,6 +40,13 @@ rust_test(
     name = "brenn_acoustics_test",
     size = "small",
     crate = ":brenn_acoustics",
+    # The echo canceller's tests adapt about 125 s of signal at 1024 taps:
+    # unoptimised that is over half a minute of CPU, optimised a few
+    # seconds. Debug assertions stay on. The flags reach the test crate only.
+    rustc_flags = [
+        "-Copt-level=3",
+        "-Cdebug-assertions=on",
+    ],
 )
 
 rustfmt_test(

@@ -19,9 +19,22 @@ tested on signals generated in code.
 
 ## Status
 
-One primitive: `brenn_acoustics::delay::gcc_phat`, the delay between two
+Three primitives that together cancel a loudspeaker's echo:
+
+- `brenn_acoustics::delay::reference_delay`: where the echo of a
+  loudspeaker's reference sits in a microphone, in whole frames, or a
+  refusal when the signals carry no trustworthy delay.
+- `brenn_acoustics::filter::HighPass`: a streaming fourth-order high-pass,
+  the front end an echo canceller needs on real microphones.
+- `brenn_acoustics::echo::Canceller`: a streaming, per-microphone adaptive
+  echo canceller.
+
+Beside them, `brenn_acoustics::delay::gcc_phat` is the delay between two
 channels by generalised cross-correlation with the phase transform, to a
 fraction of a frame.
+
+Nothing yet follows a delay that changes, and nothing models a loudspeaker's
+distortion.
 
 ## Building
 
