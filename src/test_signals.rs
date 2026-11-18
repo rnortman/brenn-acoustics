@@ -1,6 +1,10 @@
 //! Signals and measures the unit tests share. Every signal is made in code
 //! from a fixed seed.
 
+use crate::array::LineArray;
+use crate::fft::{self, Complex};
+use std::f64::consts::PI;
+
 /// A fixed-seed generator of uniform noise in [-1, 1).
 pub(crate) struct Noise(pub(crate) u64);
 
@@ -130,4 +134,169 @@ pub(crate) fn gain_db(out: &[f32], s: &[f32]) -> f64 {
     let gain = cross / energy;
     assert!(gain > 0.0, "gain {gain} is not above zero");
     20.0 * gain.log10()
+}
+
+/// The amplitude of the sinusoid at `frequency` cycles per frame in
+/// `signal`, fitted by least squares on a sine and a cosine from frame
+/// `start` on.
+pub(crate) fn amplitude(signal: &[f32], frequency: f64, start: usize) -> f64 {
+    let (mut ss, mut sc, mut cc, mut ys, mut yc) = (0.0, 0.0, 0.0, 0.0, 0.0);
+    for (t, &y) in signal.iter().enumerate().skip(start) {
+        let (s, c) = (2.0 * PI * frequency * t as f64).sin_cos();
+        let y = f64::from(y);
+        ss += s * s;
+        sc += s * c;
+        cc += c * c;
+        ys += y * s;
+        yc += y * c;
+    }
+    let det = ss * cc - sc * sc;
+    let a = (ys * cc - yc * sc) / det;
+    let b = (yc * ss - ys * sc) / det;
+    a.hypot(b)
+}
+
+/// How many frames before the array's centre microphone `m` hears a plane
+/// wave from `angle`: `(m - (M - 1) / 2) * spacing * cos(angle)`.
+fn advance(array: &LineArray, m: usize, angle: f32) -> f64 {
+    let centre = (array.mics() - 1) as f64 / 2.0;
+    (m as f64 - centre) * f64::from(array.spacing()) * f64::from(angle).cos()
+}
+
+/// One degree, in radians.
+pub(crate) const DEGREE: f32 = std::f32::consts::PI / 180.0;
+
+/// The array the multi-microphone tests share: four microphones 1.54 frames
+/// apart, 33 mm at 16 kHz.
+pub(crate) fn test_array() -> LineArray {
+    LineArray::new(4, 1.54).unwrap()
+}
+
+/// `mics`, each with independent white noise of mean power `power` added,
+/// microphone `m`'s from seed `seed + m`.
+pub(crate) fn with_noise(mics: &[Vec<f32>], power: f64, seed: u64) -> Vec<Vec<f32>> {
+    mics.iter()
+        .enumerate()
+        .map(|(m, c)| sum(c, &white(c.len(), power, seed + m as u64)))
+        .collect()
+}
+
+/// Each microphone's copy of the unit sine at `frequency` cycles per frame
+/// arriving from `angle`, `len` frames: microphone `m` is
+/// `sin(2 pi frequency (t + advance))`, the array's centre hearing
+/// `sin(2 pi frequency t)`.
+pub(crate) fn plane_tone(
+    array: &LineArray,
+    angle: f32,
+    frequency: f64,
+    len: usize,
+) -> Vec<Vec<f32>> {
+    (0..array.mics())
+        .map(|m| {
+            let lead = advance(array, m, angle);
+            (0..len)
+                .map(|t| (2.0 * PI * frequency * (t as f64 + lead)).sin() as f32)
+                .collect()
+        })
+        .collect()
+}
+
+/// A plane wave on a line array: what the array's centre hears, and each
+/// microphone's copy.
+pub(crate) struct PlaneWave {
+    pub(crate) centre: Vec<f32>,
+    pub(crate) mics: Vec<Vec<f32>>,
+}
+
+/// A random-phase source of flat spectrum arriving from `angle`, `len`
+/// frames, a power of two: every bin from `band.0` to `band.1` cycles per
+/// frame holds unit magnitude, the others zero, and microphone `m`'s copy is
+/// the spectrum times the exact phase ramp of its advance, so that a delay
+/// of any fraction of a frame is exact for the signal taken as periodic in
+/// `len`. Bins 0 and `len / 2` are zero. Scaled so that the centre's mean
+/// power is `power`. The same seed gives the same phases whatever the band.
+pub(crate) fn plane_wave(
+    array: &LineArray,
+    angle: f32,
+    band: (f64, f64),
+    len: usize,
+    power: f64,
+    seed: u64,
+) -> PlaneWave {
+    shaped_plane_wave(
+        array,
+        angle,
+        |f| (f >= band.0 && f <= band.1).then_some(1.0),
+        len,
+        power,
+        seed,
+    )
+}
+
+/// As [`plane_wave`] over the whole band, with the speech-like tilt of
+/// [`low_passed`]: bin magnitudes follow the one-pole low-pass
+/// `1 / |1 - 0.9 e^(-2 pi i f)|`, 25 dB down from the lowest frequencies to
+/// half the rate.
+pub(crate) fn tilted_plane_wave(
+    array: &LineArray,
+    angle: f32,
+    len: usize,
+    power: f64,
+    seed: u64,
+) -> PlaneWave {
+    shaped_plane_wave(
+        array,
+        angle,
+        |f| Some(1.0 / (1.81 - 1.8 * (2.0 * PI * f).cos()).sqrt()),
+        len,
+        power,
+        seed,
+    )
+}
+
+/// A random-phase source of `len` frames, a power of two, arriving from
+/// `angle`, bin `k`'s magnitude being `magnitude(k / len)` and `None` an
+/// empty bin. Bins 0 and `len / 2` are zero. Scaled so that the centre's
+/// mean power is `power`.
+fn shaped_plane_wave(
+    array: &LineArray,
+    angle: f32,
+    magnitude: impl Fn(f64) -> Option<f64>,
+    len: usize,
+    power: f64,
+    seed: u64,
+) -> PlaneWave {
+    let mut noise = Noise(seed);
+    let bins: Vec<Option<(f64, f64)>> = (0..len / 2)
+        .map(|k| {
+            let phase = PI * f64::from(noise.next());
+            let size = magnitude(k as f64 / len as f64);
+            if k == 0 {
+                None
+            } else {
+                size.map(|s| (s, phase))
+            }
+        })
+        .collect();
+    let delayed = |lead: f64| -> Vec<f32> {
+        let mut spectrum = vec![Complex::ZERO; len];
+        for (k, bin) in bins.iter().enumerate() {
+            if let Some((size, phase)) = bin {
+                let turn = phase + 2.0 * PI * k as f64 * lead / len as f64;
+                let bin = Complex::new((size * turn.cos()) as f32, (size * turn.sin()) as f32);
+                spectrum[k] = bin;
+                spectrum[len - k] = bin.conj();
+            }
+        }
+        fft::inverse(&mut spectrum);
+        spectrum.iter().map(|x| x.re).collect()
+    };
+    let centre = delayed(0.0);
+    let gain = (power / mean_square(&centre)).sqrt() as f32;
+    PlaneWave {
+        centre: amplified(&centre, gain),
+        mics: (0..array.mics())
+            .map(|m| amplified(&delayed(advance(array, m, angle)), gain))
+            .collect(),
+    }
 }

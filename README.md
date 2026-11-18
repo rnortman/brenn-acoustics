@@ -33,6 +33,13 @@ Beside them, `brenn_acoustics::delay::gcc_phat` is the delay between two
 channels by generalised cross-correlation with the phase transform, to a
 fraction of a frame.
 
+For a line of microphones, `brenn_acoustics::array::LineArray` holds the
+geometry and the conventions, `brenn_acoustics::beam::FixedBeams` steers
+delay-and-sum beams to fixed angles, `brenn_acoustics::doa::Direction`
+estimates the direction of the dominant source at a fixed interval, and
+`brenn_acoustics::beam::SelectedBeam` puts out one of the fixed beams, moving
+to the one nearest that direction.
+
 Nothing yet follows a delay that changes, and nothing models a loudspeaker's
 distortion.
 

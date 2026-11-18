@@ -119,31 +119,12 @@ impl HighPass {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_signals::{bits, white};
+    use crate::test_signals::{amplitude, bits, white};
 
     /// The formula's gain in dB at `frequency` for a filter at `cutoff`.
     fn formula_db(cutoff: f64, frequency: f64) -> f64 {
         let ratio = (PI * cutoff).tan() / (PI * frequency).tan();
         -10.0 * (1.0 + ratio.powi(8)).log10()
-    }
-
-    /// The amplitude of the sinusoid at `frequency` in `signal`, fitted by
-    /// least squares on a sine and a cosine starting at frame `start`.
-    fn amplitude(signal: &[f32], frequency: f64, start: usize) -> f64 {
-        let (mut ss, mut sc, mut cc, mut ys, mut yc) = (0.0, 0.0, 0.0, 0.0, 0.0);
-        for (t, &y) in signal.iter().enumerate().skip(start) {
-            let (s, c) = (2.0 * PI * frequency * t as f64).sin_cos();
-            let y = f64::from(y);
-            ss += s * s;
-            sc += s * c;
-            cc += c * c;
-            ys += y * s;
-            yc += y * c;
-        }
-        let det = ss * cc - sc * sc;
-        let a = (ys * cc - yc * sc) / det;
-        let b = (yc * ss - ys * sc) / det;
-        a.hypot(b)
     }
 
     #[test]

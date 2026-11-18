@@ -8,7 +8,10 @@ tools/. Sources are listed by name; a new source file is added here.
 load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test", "rustfmt_test")
 
 SRCS = [
+    "src/array.rs",
+    "src/beam.rs",
     "src/delay.rs",
+    "src/doa.rs",
     "src/echo.rs",
     "src/fft.rs",
     "src/filter.rs",

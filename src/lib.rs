@@ -18,8 +18,22 @@
 //! [`echo::Canceller`] per microphone; an echo leading its reference by no
 //! more than the canceller's `lead` is covered by the lead taps. Lay each
 //! output over its microphone by [`echo::Canceller::output_lag`].
+//!
+//! For a line of microphones:
+//!
+//! - [`array`]: the line's geometry ([`array::LineArray`]) and the
+//!   conventions every multi-microphone algorithm shares: how channels are
+//!   passed and how a direction is measured.
+//! - [`beam`]: delay-and-sum beams at fixed angles, fed in blocks
+//!   ([`beam::FixedBeams`]), and one channel that moves to the beam nearest
+//!   the dominant source's direction ([`beam::SelectedBeam`]).
+//! - [`doa`]: the direction of the dominant source, read at a fixed
+//!   interval ([`doa::Direction`]).
 
+pub mod array;
+pub mod beam;
 pub mod delay;
+pub mod doa;
 pub mod echo;
 mod fft;
 pub mod filter;

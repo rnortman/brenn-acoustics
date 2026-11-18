@@ -133,7 +133,7 @@ pub fn gcc_phat(a: &[f32], b: &[f32], max_lag: usize) -> Result<Delay, DelayErro
 /// ignores each channel's scale, and at unit peak no sum in the transform can
 /// overflow and no sample of a quiet channel loses precision to the subnormal
 /// range.
-fn spectrum(signal: &[f32], n: usize, window: bool) -> Vec<Complex> {
+pub(crate) fn spectrum(signal: &[f32], n: usize, window: bool) -> Vec<Complex> {
     let mut data = vec![Complex::ZERO; n];
     let peak = signal.iter().fold(0.0f32, |peak, x| peak.max(x.abs()));
     if peak > 0.0 {
@@ -349,7 +349,7 @@ fn phase_transform(
 /// `z` divided by its magnitude, or `None` when the magnitude is zero.
 /// Dividing by the magnitude, rather than multiplying by its reciprocal, stays
 /// finite when the magnitude is subnormal.
-fn unit_phasor(z: Complex) -> Option<Complex> {
+pub(crate) fn unit_phasor(z: Complex) -> Option<Complex> {
     let magnitude = z.norm();
     (magnitude > 0.0).then(|| Complex::new(z.re / magnitude, z.im / magnitude))
 }
